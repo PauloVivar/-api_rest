@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=dba
+      - MONGO_INITDB_ROOT_PASSWORD=12345
+    ports:
+      - "27017:27017"
+    networks:
+      - ups_net
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: mongosh --eval 'db.runCommand("ping").ok' --quiet mongodb://dba:12345@localhost:27017/admin
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: ["mongod", "--bind_ip_all"]
+  
+  miapp:
+    build: 
+      context: .
+      dockerfile: dockerfile
+    container_name: miapp
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://dba:12345@mongodb:27017/miapp?authSource=admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - ups_net
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    restart: unless-stopped
+
+networks:
+  ups_net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local
